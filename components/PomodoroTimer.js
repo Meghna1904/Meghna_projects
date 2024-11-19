@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Square, RotateCcw, Pause } from 'lucide-react';
 
@@ -59,6 +59,48 @@ const MinimalistPomodoroTimer = ({
     breakDuration: savedSession.breakDuration
   });
   const [accumulatedTime, setAccumulatedTime] = useState(savedSession.accumulatedTime);
+  const audioContextRef = useRef(null);
+
+  // Initialize audio context
+  useEffect(() => {
+    // Create AudioContext only on user interaction to comply with browser policies
+    const initAudio = () => {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    };
+
+    // Add listener for user interaction
+    document.addEventListener('click', initAudio, { once: true });
+    return () => document.removeEventListener('click', initAudio);
+  }, []);
+
+  // Function to play notification sound
+  const playNotification = useCallback((frequency = 440, duration = 0.5) => {
+    if (!audioContextRef.current) return;
+
+    const oscillator = audioContextRef.current.createOscillator();
+    const gainNode = audioContextRef.current.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContextRef.current.destination);
+
+    // Set sound properties
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+    gainNode.gain.value = 0.5;
+
+    // Fade out
+    gainNode.gain.setValueAtTime(0.5, audioContextRef.current.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(
+      0.01, 
+      audioContextRef.current.currentTime + duration
+    );
+
+    // Start and stop
+    oscillator.start(audioContextRef.current.currentTime);
+    oscillator.stop(audioContextRef.current.currentTime + duration);
+  }, []);
 
   // Timer logic
   useEffect(() => {
@@ -85,7 +127,32 @@ const MinimalistPomodoroTimer = ({
       }, 1000);
     } else if (time === 0) {
       // Session completed
-      handleSessionComplete();
+      if (isBreak) {
+        // Break ended
+        playNotification(523.25, 0.3); // Higher pitch for break end
+        setTimeout(() => playNotification(659.25, 0.3), 300);
+        setIsBreak(false);
+        setTime(currentSession.workDuration * 60);
+      } else {
+        // Work session finished
+        playNotification(440, 0.3); // Lower pitch for session end
+        setTimeout(() => playNotification(523.25, 0.3), 300);
+        if (selectedSubject && selectedTopic && accumulatedTime > 0) {
+          const studyMinutes = Math.floor(accumulatedTime / 60);
+          onTimeUpdate({
+            subjectId: selectedSubject.id,
+            topicId: selectedTopic.id,
+            time: studyMinutes,
+            type: 'work',
+            operation: 'add'
+          });
+        }
+        setIsBreak(true);
+        setTime(currentSession.breakDuration * 60);
+      }
+      setIsActive(false);
+      setIsPaused(false);
+      setAccumulatedTime(0);
     }
 
     return () => {
@@ -93,7 +160,7 @@ const MinimalistPomodoroTimer = ({
         clearInterval(interval);
       }
     };
-  }, [isActive, isPaused, time, isBreak, selectedSubject, selectedTopic, currentSession, accumulatedTime]);
+  }, [isActive, isPaused, time, isBreak, selectedSubject, selectedTopic, currentSession, accumulatedTime, playNotification]);
 
   // Track study session
   const trackStudySession = useCallback((duration) => {

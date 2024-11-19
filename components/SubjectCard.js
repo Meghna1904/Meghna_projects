@@ -12,26 +12,21 @@ import {
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
-const SubjectCard = ({ 
-  subject, 
-  onUpdate, 
-  onDelete, 
-  currentSession 
-}) => {
+const SubjectCard = ({ subject, onUpdate, onDelete, currentSession }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [newTopic, setNewTopic] = useState('');
+  const [isBulkImport, setIsBulkImport] = useState(false);
 
   // Calculate real-time study time including current session
   const studyTimeData = useMemo(() => {
     let totalTime = subject.totalStudyTime || 0;
     const topics = [...(subject.topics || [])];
 
-    // Add current session time if this subject is active
     if (currentSession?.selectedSubject?.id === subject.id && !currentSession.isBreak) {
       totalTime += Math.floor(currentSession.accumulatedTime / 60);
       
-      // Update specific topic time if one is selected
       if (currentSession.selectedTopic) {
         const topicIndex = topics.findIndex(t => t.id === currentSession.selectedTopic.id);
         if (topicIndex !== -1) {
@@ -46,7 +41,6 @@ const SubjectCard = ({
     return { totalTime, topics };
   }, [subject, currentSession]);
 
-  // Calculate progress percentage
   const calculateProgress = useMemo(() => {
     if (!subject.topics || subject.topics.length === 0) return 0;
     const completedTopics = subject.topics.filter(topic => topic.completed).length;
@@ -55,11 +49,18 @@ const SubjectCard = ({
 
   const addTopic = () => {
     if (newTopic.trim()) {
-      // Split topics by semicolon and trim whitespace
-      const topicsToAdd = newTopic
-        .split(';')
-        .map(topic => topic.trim())
-        .filter(topic => topic.length > 0); // Remove empty topics
+      let topicsToAdd = [];
+      
+      if (isBulkImport) {
+        // Split by commas for bulk import
+        topicsToAdd = newTopic
+          .split(',')
+          .map(topic => topic.trim())
+          .filter(topic => topic.length > 0);
+      } else {
+        // Single topic import
+        topicsToAdd = [newTopic.trim()];
+      }
 
       if (topicsToAdd.length > 0) {
         const updatedSubject = {
@@ -67,7 +68,7 @@ const SubjectCard = ({
           topics: [
             ...(subject.topics || []),
             ...topicsToAdd.map(topicName => ({
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 9), // Ensure unique IDs
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               name: topicName,
               completed: false,
               studyTime: 0,
@@ -123,7 +124,6 @@ const SubjectCard = ({
     return `${minutes}m`;
   };
 
-  // Check if this subject is currently active
   const isActive = currentSession?.selectedSubject?.id === subject.id && !currentSession?.isBreak;
 
   return (
@@ -139,7 +139,6 @@ const SubjectCard = ({
             <h2 className="text-xl font-semibold text-violet-950 dark:text-white">
               {subject.name}
             </h2>
-            {/* Progress Bar */}
             <div className="mt-2 space-y-1">
               <div className="flex justify-between text-sm text-violet-700 dark:text-violet-300">
                 <span>{calculateProgress}% Complete</span>
@@ -183,29 +182,39 @@ const SubjectCard = ({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="mt-4 space-y-2"
+              className="mt-4 space-y-4"
             >
               <div className="flex flex-col space-y-2">
                 <div className="flex space-x-2">
                   <Input
                     type="text"
-                    placeholder="Add topics (separate by semicolon ;)"
+                    placeholder={isBulkImport ? "Add multiple topics (separate by commas)" : "Add a topic"}
                     value={newTopic}
                     onChange={(e) => setNewTopic(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && addTopic()}
-                    className="flex-grow dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:placeholder-gray-400 focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-400"
+                    className="flex-grow dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:placeholder-gray-400"
                   />
                   <Button 
                     onClick={addTopic} 
                     disabled={!newTopic.trim()}
-                    className="bg-violet-500 hover:bg-violet-600 text-white dark:bg-violet-600 dark:hover:bg-violet-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-400 transition-colors"
+                    className="bg-violet-500 hover:bg-violet-600 text-white dark:bg-violet-600 dark:hover:bg-violet-700"
                   >
                     <Plus className="w-4 h-4 mr-2" /> Add
                   </Button>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-                  Note: Use semicolon (;) to add multiple topics at once. Example: "Topic 1; Topic 2, with comma; Topic 3"
-                </p>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="bulkImport"
+                    checked={isBulkImport}
+                    onCheckedChange={setIsBulkImport}
+                  />
+                  <label
+                    htmlFor="bulkImport"
+                    className="text-sm text-gray-600 dark:text-gray-400 cursor-pointer"
+                  >
+                    Bulk import mode (separate topics with commas)
+                  </label>
+                </div>
               </div>
 
               {studyTimeData.topics.map((topic) => (
@@ -216,8 +225,8 @@ const SubjectCard = ({
                   exit={{ opacity: 0 }}
                   className={`flex items-center justify-between p-3 rounded-lg ${
                     topic.completed 
-                      ? 'bg-green-100/50 dark:bg-green-900/20 text-green-700 dark:text-green-300' 
-                      : 'bg-blue-50/50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                      ? 'bg-green-100/50 dark:bg-green-900/20' 
+                      : 'bg-blue-50/50 dark:bg-blue-900/20'
                   } hover:shadow-md transition-all duration-300`}
                 >
                   <div className="flex items-center space-x-3 flex-grow">
@@ -228,19 +237,15 @@ const SubjectCard = ({
                       className={`p-1 rounded-full transition-colors ${
                         topic.completed
                           ? 'text-green-500 dark:text-green-400'
-                          : 'text-gray-400 dark:text-gray-500 hover:text-violet-500 dark:hover:text-violet-400'
+                          : 'text-gray-400 dark:text-gray-500 hover:text-violet-500'
                       }`}
                     >
                       <CheckCircle className="w-5 h-5" />
                     </motion.button>
-                    <span className={`flex-grow ${
-                      topic.completed
-                        ? 'text-green-700 dark:text-green-300 line-through'
-                        : 'text-gray-700 dark:text-gray-200'
-                    }`}>
+                    <span className={topic.completed ? 'line-through text-gray-500' : ''}>
                       {topic.name}
                     </span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
                       {formatTime(topic.studyTime || 0)}
                       {currentSession?.selectedTopic?.id === topic.id && isActive && (
                         <span className="text-green-500 dark:text-green-400 ml-1">
@@ -248,6 +253,8 @@ const SubjectCard = ({
                         </span>
                       )}
                     </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
@@ -255,7 +262,7 @@ const SubjectCard = ({
                       className={`p-1 rounded-full transition-colors ${
                         topic.forReview
                           ? 'text-violet-500 dark:text-violet-400'
-                          : 'text-gray-400 dark:text-gray-500 hover:text-violet-500 dark:hover:text-violet-400'
+                          : 'text-gray-400 dark:text-gray-500 hover:text-violet-500'
                       }`}
                     >
                       {topic.forReview ? (
@@ -264,15 +271,15 @@ const SubjectCard = ({
                         <Bookmark className="w-5 h-5" />
                       )}
                     </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => deleteTopic(topic.id)}
+                      className="p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </motion.button>
                   </div>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => deleteTopic(topic.id)}
-                    className="ml-2 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500 dark:text-red-400"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </motion.button>
                 </motion.div>
               ))}
             </motion.div>
