@@ -1,18 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trash2, 
   Plus, 
   ChevronDown, 
   ChevronRight, 
-  CheckCircle 
+  CheckCircle, 
+  Clock
 } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-const SubjectCard = ({ subject, onUpdate, onDelete, theme }) => {
+const SubjectCard = ({ 
+  subject, 
+  onUpdate, 
+  onDelete, 
+  currentSession 
+}) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [newTopic, setNewTopic] = useState('');
+
+  // Calculate real-time study time including current session
+  const studyTimeData = useMemo(() => {
+    let totalTime = subject.totalStudyTime || 0;
+    const topics = [...(subject.topics || [])];
+
+    // Add current session time if this subject is active
+    if (currentSession?.selectedSubject?.id === subject.id && !currentSession.isBreak) {
+      totalTime += Math.floor(currentSession.accumulatedTime / 60);
+      
+      // Update specific topic time if one is selected
+      if (currentSession.selectedTopic) {
+        const topicIndex = topics.findIndex(t => t.id === currentSession.selectedTopic.id);
+        if (topicIndex !== -1) {
+          topics[topicIndex] = {
+            ...topics[topicIndex],
+            studyTime: (topics[topicIndex].studyTime || 0) + Math.floor(currentSession.accumulatedTime / 60)
+          };
+        }
+      }
+    }
+
+    return { totalTime, topics };
+  }, [subject, currentSession]);
 
   const addTopic = () => {
     if (newTopic.trim()) {
@@ -53,18 +83,6 @@ const SubjectCard = ({ subject, onUpdate, onDelete, theme }) => {
     onUpdate(updatedSubject);
   };
 
-  const updateTopicStudyTime = (topicId, time) => {
-    const updatedSubject = {
-      ...subject,
-      topics: (subject.topics || []).map(topic => 
-        topic.id === topicId 
-          ? { ...topic, studyTime: (topic.studyTime || 0) + time }
-          : topic
-      )
-    };
-    onUpdate(updatedSubject);
-  };
-
   const calculateCompletion = () => {
     const topics = subject.topics || [];
     if (topics.length === 0) return 0;
@@ -82,23 +100,33 @@ const SubjectCard = ({ subject, onUpdate, onDelete, theme }) => {
     return `${minutes}m`;
   };
 
+  // Check if this subject is currently active
+  const isActive = currentSession?.selectedSubject?.id === subject.id && !currentSession?.isBreak;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 relative"
     >
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-            {subject.name}
-          </h2>
+          <div className="flex items-center">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+              {subject.name}
+            </h2>
+            {isActive && (
+              <span className="ml-2 px-2 py-1 text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 rounded-full animate-pulse">
+                Active
+              </span>
+            )}
+          </div>
           <div className="flex items-center mt-2">
             <div 
               className="h-2 bg-violet-200 dark:bg-gray-700 rounded-full w-32 mr-2"
             >
               <div 
-                className="h-2 bg-violet-600 rounded-full" 
+                className="h-2 bg-violet-600 rounded-full transition-all duration-300" 
                 style={{ width: `${calculateCompletion()}%` }}
               />
             </div>
@@ -106,9 +134,17 @@ const SubjectCard = ({ subject, onUpdate, onDelete, theme }) => {
               {calculateCompletion()}%
             </span>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Total Study Time: {formatTime(subject.totalStudyTime || 0)}
-          </p>
+          <div className="flex items-center mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <Clock className="w-4 h-4 mr-1" />
+            <span>
+              {formatTime(studyTimeData.totalTime)}
+              {isActive && (
+                <span className="text-green-500 dark:text-green-400 ml-1">
+                  (+{formatTime(Math.floor(currentSession.accumulatedTime / 60))})
+                </span>
+              )}
+            </span>
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <motion.button
@@ -156,7 +192,7 @@ const SubjectCard = ({ subject, onUpdate, onDelete, theme }) => {
               </Button>
             </div>
 
-            {(subject.topics || []).map((topic) => (
+            {studyTimeData.topics.map((topic) => (
               <motion.div
                 key={topic.id}
                 initial={{ opacity: 0 }}
@@ -190,6 +226,11 @@ const SubjectCard = ({ subject, onUpdate, onDelete, theme }) => {
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-500 dark:text-gray-300">
                     {formatTime(topic.studyTime || 0)}
+                    {isActive && currentSession.selectedTopic?.id === topic.id && (
+                      <span className="text-green-500 dark:text-green-400 ml-1">
+                        (+{formatTime(Math.floor(currentSession.accumulatedTime / 60))})
+                      </span>
+                    )}
                   </span>
                   <motion.button
                     whileHover={{ scale: 1.1 }}
