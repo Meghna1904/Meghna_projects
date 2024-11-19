@@ -46,6 +46,31 @@ const PerformanceInsights = ({ subjects, currentSession }) => {
     return `${hours}h ${remainingMinutes}m`;
   };
 
+  const formatYAxis = (minutes) => {
+    const hours = Math.floor(minutes / 60);
+    if (hours === 0) return `${minutes}m`;
+    return `${hours}h`;
+  };
+
+  const calculateYAxisTicks = () => {
+    const maxTime = Math.max(...getPerformanceData.map(d => d.time));
+    if (maxTime === 0) return [0];
+    
+    // If less than 1 hour, show intervals of 15 minutes
+    if (maxTime < 60) {
+      return Array.from({ length: Math.ceil(maxTime / 15) + 1 }, (_, i) => i * 15);
+    }
+    
+    // If less than 2 hours, show intervals of 30 minutes
+    if (maxTime < 120) {
+      return Array.from({ length: Math.ceil(maxTime / 30) + 1 }, (_, i) => i * 30);
+    }
+    
+    // For longer durations, show hourly intervals
+    const maxHours = Math.ceil(maxTime / 60);
+    return Array.from({ length: maxHours + 1 }, (_, i) => i * 60);
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
       <div className="flex items-center mb-6">
@@ -89,10 +114,11 @@ const PerformanceInsights = ({ subjects, currentSession }) => {
                 tickLine={false}
               />
               <YAxis 
+                tickFormatter={formatYAxis}
+                ticks={calculateYAxisTicks()}
                 stroke="#9CA3AF"
                 fontSize={12}
                 tickLine={false}
-                tickFormatter={(value) => `${Math.floor(value / 60)}h`}
               />
               <Tooltip 
                 contentStyle={{ 

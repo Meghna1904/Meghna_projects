@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Settings } from 'lucide-react';
+import { Moon, Sun } from 'lucide-react';
 
 const ThemeToggle = ({ theme, setTheme }) => {
   const toggleTheme = () => {
@@ -12,9 +12,13 @@ const ThemeToggle = ({ theme, setTheme }) => {
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       onClick={toggleTheme}
-      className="p-2 rounded-full bg-white dark:bg-gray-800 shadow-md hover:shadow-lg transition-shadow"
+      className="p-2 rounded-full bg-white dark:bg-gray-800 shadow-md hover:shadow-lg transition-all"
     >
-      <Settings className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+      {theme === 'dark' ? (
+        <Moon className="w-6 h-6 text-indigo-400" />
+      ) : (
+        <Sun className="w-6 h-6 text-amber-500" />
+      )}
     </motion.button>
   );
 };

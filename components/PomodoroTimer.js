@@ -1,8 +1,6 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, RotateCcw } from 'lucide-react';
-
+import { Play, Square, RotateCcw, Pause } from 'lucide-react';
 
 // Utility functions
 const saveToLocalStorage = (key, value) => {
@@ -12,7 +10,6 @@ const saveToLocalStorage = (key, value) => {
     console.error('Error saving to localStorage:', e);
   }
 };
-
 
 const loadFromLocalStorage = (key, defaultValue) => {
   try {
@@ -24,13 +21,11 @@ const loadFromLocalStorage = (key, defaultValue) => {
   }
 };
 
-
 const formatTime = (timeInSeconds) => {
   const minutes = Math.floor(timeInSeconds / 60);
   const seconds = timeInSeconds % 60;
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
-
 
 const MinimalistPomodoroTimer = ({
   subjects,
@@ -42,6 +37,7 @@ const MinimalistPomodoroTimer = ({
   // Load saved session state from localStorage
   const savedSession = loadFromLocalStorage('pomodoroSession', {
     isActive: false,
+    isPaused: false,
     isBreak: false,
     remainingTime: defaultWorkDuration * 60,
     selectedSubjectId: null,
@@ -51,10 +47,10 @@ const MinimalistPomodoroTimer = ({
     accumulatedTime: 0
   });
 
-
   // State initialization
   const [time, setTime] = useState(savedSession.remainingTime);
   const [isActive, setIsActive] = useState(savedSession.isActive);
+  const [isPaused, setIsPaused] = useState(savedSession.isPaused);
   const [isBreak, setIsBreak] = useState(savedSession.isBreak);
   const [selectedSubject, setSelectedSubject] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -64,53 +60,155 @@ const MinimalistPomodoroTimer = ({
   });
   const [accumulatedTime, setAccumulatedTime] = useState(savedSession.accumulatedTime);
 
-
   // Timer logic
- // Update time when work or break duration changes
- useEffect(() => {
-  if (!isActive) {
-    setTime(isBreak ? currentSession.breakDuration * 60 : currentSession.workDuration * 60);
-  }
-}, [currentSession.workDuration, currentSession.breakDuration, isBreak, isActive]);
+  useEffect(() => {
+    let interval = null;
+    if (isActive && !isPaused && time > 0) {
+      interval = setInterval(() => {
+        setTime((prevTime) => {
+          const newTime = prevTime - 1;
+          // Save current session state to localStorage
+          saveToLocalStorage('pomodoroSession', {
+            isActive,
+            isPaused,
+            isBreak,
+            remainingTime: newTime,
+            selectedSubjectId: selectedSubject?.id || null,
+            selectedTopicId: selectedTopic?.id || null,
+            workDuration: currentSession.workDuration,
+            breakDuration: currentSession.breakDuration,
+            accumulatedTime: accumulatedTime + 1
+          });
+          return newTime;
+        });
+        setAccumulatedTime(prev => prev + 1);
+      }, 1000);
+    } else if (time === 0) {
+      // Session completed
+      handleSessionComplete();
+    }
 
-useEffect(() => {
-  let interval = null;
-  if (isActive && time > 0) {
-    interval = setInterval(() => {
-      setTime((prevTime) => prevTime - 1);
-    }, 1000);
-  } else if (time === 0) {
-    if (!isBreak) {
-      // Complete work session
-      if (selectedSubject && selectedTopic) {
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isActive, isPaused, time, isBreak, selectedSubject, selectedTopic, currentSession, accumulatedTime]);
+
+  // Track study session
+  const trackStudySession = useCallback((duration) => {
+    const session = {
+      timestamp: new Date().toISOString(),
+      duration, // in minutes
+      subjectId: selectedSubject?.id,
+      topicId: selectedTopic?.id,
+      type: 'work'
+    };
+
+    // Get existing sessions from localStorage
+    const existingSessions = JSON.parse(localStorage.getItem('studySessions') || '[]');
+    const updatedSessions = [...existingSessions, session];
+    
+    // Keep only last 30 days of sessions
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const filteredSessions = updatedSessions.filter(s => 
+      new Date(s.timestamp) > thirtyDaysAgo
+    );
+
+    // Save to localStorage
+    localStorage.setItem('studySessions', JSON.stringify(filteredSessions));
+  }, [selectedSubject?.id, selectedTopic?.id]);
+
+  // Handle session completion
+  const handleSessionComplete = useCallback(() => {
+    if (isBreak) {
+      // Break finished, start work session
+      setTime(currentSession.workDuration * 60);
+      setIsBreak(false);
+      setIsActive(false);
+      setIsPaused(false);
+      setAccumulatedTime(0);
+    } else {
+      // Work session finished
+      if (selectedSubject && selectedTopic && accumulatedTime > 0) {
+        const studyMinutes = Math.floor(accumulatedTime / 60);
         onTimeUpdate({
           subjectId: selectedSubject.id,
           topicId: selectedTopic.id,
-          time: currentSession.workDuration,
-          type: 'work'
+          time: studyMinutes,
+          type: 'work',
+          operation: 'add'
         });
         
-        // Switch to break
-        setTime(currentSession.breakDuration * 60);
-        setIsBreak(true);
+        // Track the completed study session
+        trackStudySession(studyMinutes);
       }
-    } else {
-      // Complete break session
+      
+      setTime(currentSession.breakDuration * 60);
+      setIsBreak(true);
+      setIsActive(false);
+      setIsPaused(false);
+      setAccumulatedTime(0);
+    }
+  }, [currentSession.workDuration, currentSession.breakDuration, isBreak, selectedSubject, selectedTopic, accumulatedTime, onTimeUpdate, trackStudySession]);
+
+  // Handle stop button press
+  const handleStop = useCallback(() => {
+    if (!isBreak && selectedSubject && selectedTopic && accumulatedTime > 0) {
+      const studyMinutes = Math.floor(accumulatedTime / 60);
       onTimeUpdate({
         subjectId: selectedSubject.id,
         topicId: selectedTopic.id,
-        time: currentSession.breakDuration,
-        type: 'break'
+        time: studyMinutes,
+        type: 'work',
+        operation: 'add'
       });
       
-      // Reset to work session
-      setTime(currentSession.workDuration * 60);
-      setIsBreak(false);
+      // Track the partial study session
+      trackStudySession(studyMinutes);
     }
+    
+    // Only update time if timer was active and not in break mode
+    if (isActive && selectedSubject && selectedTopic && !isBreak && accumulatedTime > 0) {
+      const studyMinutes = Math.floor(accumulatedTime / 60);
+      onTimeUpdate({
+        subjectId: selectedSubject.id,
+        topicId: selectedTopic.id,
+        time: studyMinutes,
+        type: 'work',
+        operation: 'add'
+      });
+    }
+
+    // Reset all states
     setIsActive(false);
-  }
-  return () => clearInterval(interval);
-}, [isActive, time, onTimeUpdate, selectedSubject, selectedTopic, currentSession]);
+    setIsPaused(false);
+    setAccumulatedTime(0);
+    setTime(currentSession.workDuration * 60);
+    setIsBreak(false);
+    
+    // Clear local storage when stopping
+    saveToLocalStorage('pomodoroSession', {
+      isActive: false,
+      isPaused: false,
+      isBreak: false,
+      remainingTime: currentSession.workDuration * 60,
+      selectedSubjectId: selectedSubject?.id || null,
+      selectedTopicId: selectedTopic?.id || null,
+      workDuration: currentSession.workDuration,
+      breakDuration: currentSession.breakDuration,
+      accumulatedTime: 0
+    });
+  }, [isActive, selectedSubject, selectedTopic, isBreak, currentSession.workDuration, onTimeUpdate, accumulatedTime, trackStudySession]);
+
+  // Update time when work or break duration changes
+  useEffect(() => {
+    if (!isActive) {
+      setTime(isBreak ? currentSession.breakDuration * 60 : currentSession.workDuration * 60);
+    }
+  }, [currentSession.workDuration, currentSession.breakDuration, isBreak, isActive]);
 
   // Keep selected subject in sync with subjects prop
   useEffect(() => {
@@ -127,29 +225,51 @@ useEffect(() => {
     }
   }, [subjects, savedSession.selectedSubjectId, savedSession.selectedTopicId]);
 
-
-  // Duration change handlers
-  const handleWorkDurationChange = useCallback((newDuration) => {
-    setCurrentSession(prev => ({
-      ...prev,
-      workDuration: Number(newDuration)
-    }));
-    if (!isActive && !isBreak) {
-      setTime(Number(newDuration) * 60);
+  // Handle work duration change
+  const handleWorkDurationChange = (value) => {
+    const duration = parseInt(value, 10);
+    if (!isNaN(duration) && duration >= 1) {
+      setCurrentSession(prev => ({
+        ...prev,
+        workDuration: duration
+      }));
+      if (!isActive) {
+        setTime(duration * 60);
+      }
     }
-  }, [isActive, isBreak]);
+  };
 
-
-  const handleBreakDurationChange = useCallback((newDuration) => {
-    setCurrentSession(prev => ({
-      ...prev,
-      breakDuration: Number(newDuration)
-    }));
-    if (!isActive && isBreak) {
-      setTime(Number(newDuration) * 60);
+  // Handle break duration change
+  const handleBreakDurationChange = (value) => {
+    const duration = parseInt(value, 10);
+    if (!isNaN(duration) && duration >= 1) {
+      setCurrentSession(prev => ({
+        ...prev,
+        breakDuration: duration
+      }));
     }
-  }, [isActive, isBreak]);
+  };
 
+  // Handle reset
+  const handleReset = useCallback(() => {
+    setTime(currentSession.workDuration * 60);
+    setIsActive(false);
+    setIsPaused(false);
+    setIsBreak(false);
+    setAccumulatedTime(0);
+   
+    saveToLocalStorage('pomodoroSession', {
+      isActive: false,
+      isPaused: false,
+      isBreak: false,
+      remainingTime: currentSession.workDuration * 60,
+      selectedSubjectId: selectedSubject?.id || null,
+      selectedTopicId: selectedTopic?.id || null,
+      workDuration: currentSession.workDuration,
+      breakDuration: currentSession.breakDuration,
+      accumulatedTime: 0
+    });
+  }, [currentSession.workDuration, selectedSubject?.id, selectedTopic?.id]);
 
   // Selection handlers
   const handleSubjectChange = (e) => {
@@ -164,7 +284,6 @@ useEffect(() => {
     });
   };
 
-
   const handleTopicChange = (e) => {
     const newTopic = selectedSubject?.topics?.find(t => t.id === e.target.value);
     setSelectedTopic(newTopic || null);
@@ -175,24 +294,6 @@ useEffect(() => {
     });
   };
 
-
-  // Reset handler
-  const handleReset = useCallback(() => {
-    setTime(currentSession.workDuration * 60);
-    setIsActive(false);
-    setIsBreak(false);
-    setAccumulatedTime(0);
-   
-    saveToLocalStorage('pomodoroSession', {
-      ...savedSession,
-      isActive: false,
-      isBreak: false,
-      remainingTime: currentSession.workDuration * 60,
-      accumulatedTime: 0
-    });
-  }, [currentSession.workDuration, savedSession]);
-
-
   return (
     <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 max-w-md mx-auto shadow-2xl space-y-6">
       {/* Timer display section */}
@@ -202,7 +303,7 @@ useEffect(() => {
             ? 'text-green-600 dark:text-green-400'
             : 'text-violet-600 dark:text-violet-400'
         }`}>
-          {formatTime(time)}
+          {Math.floor(time / 60)}:{(time % 60).toString().padStart(2, '0')}
         </div>
         <div className={`text-sm uppercase tracking-wider font-semibold ${
           isBreak
@@ -213,7 +314,6 @@ useEffect(() => {
         </div>
       </div>
 
-
       {/* Subject and Topic Selection */}
       <div className="space-y-4">
         <div>
@@ -223,17 +323,23 @@ useEffect(() => {
           <select
             value={selectedSubject?.id || ''}
             onChange={handleSubjectChange}
-            className="w-full p-3 border-b-2 border-gray-200 dark:border-gray-700 bg-transparent focus:outline-none focus:border-violet-500 dark:focus:border-violet-400 transition-colors"
+            disabled={isActive}
+            className={`w-full p-2 rounded-lg border ${
+              isActive 
+                ? 'bg-gray-100 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400'
+                : 'bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100'
+            } dark:border-gray-600 focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-400`}
           >
-            <option value="">Choose Subject</option>
+            <option value="">Choose a subject...</option>
             {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
+              <option key={subject.id} value={subject.id}
+                className="dark:bg-gray-700 dark:text-gray-100"
+              >
                 {subject.name}
               </option>
             ))}
           </select>
         </div>
-
 
         {selectedSubject && (
           <div>
@@ -243,12 +349,18 @@ useEffect(() => {
             <select
               value={selectedTopic?.id || ''}
               onChange={handleTopicChange}
-              disabled={!selectedSubject}
-              className="w-full p-3 border-b-2 border-gray-200 dark:border-gray-700 bg-transparent focus:outline-none focus:border-violet-500 dark:focus:border-violet-400 transition-colors disabled:opacity-50"
+              disabled={isActive}
+              className={`w-full p-2 rounded-lg border ${
+                isActive 
+                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400'
+                  : 'bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100'
+              } dark:border-gray-600 focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-400`}
             >
-              <option value="">Choose Topic</option>
+              <option value="">Choose a topic...</option>
               {selectedSubject.topics?.map((topic) => (
-                <option key={topic.id} value={topic.id}>
+                <option key={topic.id} value={topic.id}
+                  className="dark:bg-gray-700 dark:text-gray-100"
+                >
                   {topic.name}
                 </option>
               ))}
@@ -257,40 +369,51 @@ useEffect(() => {
         )}
       </div>
 
-
       {/* Timer Controls */}
       <div className="flex justify-between items-center">
         <div className="flex space-x-4">
+          {!isActive || isPaused ? (
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                setIsActive(true);
+                setIsPaused(false);
+              }}
+              disabled={!selectedSubject || !selectedTopic}
+              className={`p-3 rounded-full transition-colors ${
+                !selectedSubject || !selectedTopic
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                  : 'bg-green-500 text-white hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700'
+              }`}
+            >
+              <Play className="w-6 h-6" />
+            </motion.button>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setIsPaused(true)}
+              className="p-3 rounded-full bg-yellow-500 text-white hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 transition-colors"
+            >
+              <Pause className="w-6 h-6" />
+            </motion.button>
+          )}
+
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => setIsActive(true)}
-            disabled={!selectedSubject || !selectedTopic || isActive}
-            className={`p-3 rounded-full transition-colors ${
-              selectedSubject && selectedTopic && !isActive
-                ? 'bg-violet-500 text-white hover:bg-violet-600'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-            }`}
-          >
-            <Play className="w-6 h-6" />
-          </motion.button>
-
-
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setIsActive(false)}
+            onClick={handleStop}
             disabled={!isActive}
             className={`p-3 rounded-full transition-colors ${
-              isActive
-                ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              !isActive
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
+                : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700'
             }`}
           >
-            <Pause className="w-6 h-6" />
+            <Square className="w-6 h-6" />
           </motion.button>
         </div>
-
 
         <motion.button
           whileHover={{ scale: 1.1 }}
@@ -302,39 +425,48 @@ useEffect(() => {
         </motion.button>
       </div>
 
-
       {/* Duration Settings */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-            Work Duration
+          <label className="block text-xs uppercase tracking-wider text-gray-500 dark:text-gray-300 mb-2">
+            Work Duration (min)
           </label>
           <input
             type="number"
             value={currentSession.workDuration}
             onChange={(e) => handleWorkDurationChange(e.target.value)}
-            min="5"
-            max="60"
-            className="w-full bg-transparent border-b-2 border-gray-200 dark:border-gray-700 p-2 text-center focus:outline-none focus:border-violet-500 dark:focus:border-violet-400 transition-colors"
+            min="1"
+            max="120"
+            disabled={isActive}
+            className={`w-full p-2 rounded-lg border ${
+              isActive 
+                ? 'bg-gray-100 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400'
+                : 'bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100'
+            } dark:border-gray-600 focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-400`}
           />
         </div>
+
         <div>
-          <label className="block text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
-            Break Duration
+          <label className="block text-xs uppercase tracking-wider text-gray-500 dark:text-gray-300 mb-2">
+            Break Duration (min)
           </label>
           <input
             type="number"
             value={currentSession.breakDuration}
             onChange={(e) => handleBreakDurationChange(e.target.value)}
             min="1"
-            max="30"
-            className="w-full bg-transparent border-b-2 border-gray-200 dark:border-gray-700 p-2 text-center focus:outline-none focus:border-violet-500 dark:focus:border-violet-400 transition-colors"
+            max="60"
+            disabled={isActive}
+            className={`w-full p-2 rounded-lg border ${
+              isActive 
+                ? 'bg-gray-100 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400'
+                : 'bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100'
+            } dark:border-gray-600 focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-400`}
           />
         </div>
       </div>
     </div>
   );
 };
-
 
 export default MinimalistPomodoroTimer;
