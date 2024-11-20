@@ -5,14 +5,6 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 const PerformanceInsights = ({ subjects, currentSession }) => {
   const getPerformanceData = useMemo(() => {
     return subjects.map(subject => {
-      // Calculate base study time from completed sessions
-      let totalTime = subject.totalStudyTime || 0;
-      
-      // Add current active session time if applicable
-      if (currentSession?.selectedSubject?.id === subject.id && !currentSession.isBreak) {
-        totalTime += Math.floor(currentSession.accumulatedTime / 60);
-      }
-      
       // Calculate completion percentage
       const topics = subject.topics || [];
       const completion = topics.length 
@@ -21,16 +13,10 @@ const PerformanceInsights = ({ subjects, currentSession }) => {
 
       return {
         name: subject.name,
-        time: totalTime,
         completion: Math.round(completion)
       };
     });
-  }, [subjects, currentSession]);
-
-  const totalStudyTime = useMemo(() => 
-    getPerformanceData.reduce((sum, subject) => sum + subject.time, 0),
-    [getPerformanceData]
-  );
+  }, [subjects]);
 
   const averageCompletion = useMemo(() => 
     getPerformanceData.length 
@@ -38,38 +24,6 @@ const PerformanceInsights = ({ subjects, currentSession }) => {
       : '0',
     [getPerformanceData]
   );
-
-  const formatTime = (minutes) => {
-    if (minutes < 60) return `${minutes}m`;
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return `${hours}h ${remainingMinutes}m`;
-  };
-
-  const formatYAxis = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    if (hours === 0) return `${minutes}m`;
-    return `${hours}h`;
-  };
-
-  const calculateYAxisTicks = () => {
-    const maxTime = Math.max(...getPerformanceData.map(d => d.time));
-    if (maxTime === 0) return [0];
-    
-    // If less than 1 hour, show intervals of 15 minutes
-    if (maxTime < 60) {
-      return Array.from({ length: Math.ceil(maxTime / 15) + 1 }, (_, i) => i * 15);
-    }
-    
-    // If less than 2 hours, show intervals of 30 minutes
-    if (maxTime < 120) {
-      return Array.from({ length: Math.ceil(maxTime / 30) + 1 }, (_, i) => i * 30);
-    }
-    
-    // For longer durations, show hourly intervals
-    const maxHours = Math.ceil(maxTime / 60);
-    return Array.from({ length: maxHours + 1 }, (_, i) => i * 60);
-  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6">
@@ -79,65 +33,15 @@ const PerformanceInsights = ({ subjects, currentSession }) => {
       </div>
       
       <div className="space-y-6">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-violet-50 dark:bg-gray-700 p-4 rounded-lg">
-            <div className="flex items-center mb-2">
-              <Clock className="w-4 h-4 mr-2 text-violet-600 dark:text-violet-400" />
-              <p className="text-sm text-gray-600 dark:text-gray-300">Total Study Time</p>
-            </div>
-            <p className="text-2xl font-bold text-gray-800 dark:text-white">
-              {formatTime(totalStudyTime)}
-            </p>
+        {/* Summary Card */}
+        <div className="bg-cyan-50 dark:bg-gray-700 p-4 rounded-lg">
+          <div className="flex items-center mb-2">
+            <Target className="w-4 h-4 mr-2 text-cyan-600 dark:text-cyan-400" />
+            <p className="text-sm text-gray-600 dark:text-gray-300">Average Completion</p>
           </div>
-          
-          <div className="bg-cyan-50 dark:bg-gray-700 p-4 rounded-lg">
-            <div className="flex items-center mb-2">
-              <Target className="w-4 h-4 mr-2 text-cyan-600 dark:text-cyan-400" />
-              <p className="text-sm text-gray-600 dark:text-gray-300">Average Completion</p>
-            </div>
-            <p className="text-2xl font-bold text-gray-800 dark:text-white">
-              {averageCompletion}%
-            </p>
-          </div>
-        </div>
-
-        {/* Study Time Chart */}
-        <div className="h-48">
-          <h3 className="text-md font-semibold mb-4 text-gray-700 dark:text-gray-200">Study Time Distribution</h3>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={getPerformanceData}>
-              <XAxis 
-                dataKey="name" 
-                stroke="#9CA3AF"
-                fontSize={12}
-                tickLine={false}
-              />
-              <YAxis 
-                tickFormatter={formatYAxis}
-                ticks={calculateYAxisTicks()}
-                stroke="#9CA3AF"
-                fontSize={12}
-                tickLine={false}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#1F2937',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  color: '#F3F4F6'
-                }}
-                formatter={(value) => [formatTime(value), 'Study Time']}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="time" 
-                stroke="#8B5CF6" 
-                strokeWidth={2}
-                dot={{ fill: '#8B5CF6', strokeWidth: 2 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <p className="text-2xl font-bold text-gray-800 dark:text-white">
+            {averageCompletion}%
+          </p>
         </div>
 
         {/* Subject Breakdown */}
@@ -149,9 +53,6 @@ const PerformanceInsights = ({ subjects, currentSession }) => {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                     {subject.name}
-                  </span>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {formatTime(subject.time)}
                   </span>
                 </div>
                 <div className="relative h-2 bg-gray-200 dark:bg-gray-600 rounded-full">

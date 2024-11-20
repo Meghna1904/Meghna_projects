@@ -6,7 +6,6 @@ import {
   ChevronDown, 
   ChevronRight, 
   CheckCircle, 
-  Clock, 
   Bookmark, 
   BookmarkCheck
 } from 'lucide-react';
@@ -14,32 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
-const SubjectCard = ({ subject, onUpdate, onDelete, currentSession }) => {
+const SubjectCard = ({ subject, onUpdate, onDelete }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [newTopic, setNewTopic] = useState('');
   const [isBulkImport, setIsBulkImport] = useState(false);
-
-  // Calculate real-time study time including current session
-  const studyTimeData = useMemo(() => {
-    let totalTime = subject.totalStudyTime || 0;
-    const topics = [...(subject.topics || [])];
-
-    if (currentSession?.selectedSubject?.id === subject.id && !currentSession.isBreak) {
-      totalTime += Math.floor(currentSession.accumulatedTime / 60);
-      
-      if (currentSession.selectedTopic) {
-        const topicIndex = topics.findIndex(t => t.id === currentSession.selectedTopic.id);
-        if (topicIndex !== -1) {
-          topics[topicIndex] = {
-            ...topics[topicIndex],
-            studyTime: (topics[topicIndex].studyTime || 0) + Math.floor(currentSession.accumulatedTime / 60)
-          };
-        }
-      }
-    }
-
-    return { totalTime, topics };
-  }, [subject, currentSession]);
 
   const calculateProgress = useMemo(() => {
     if (!subject.topics || subject.topics.length === 0) return 0;
@@ -71,7 +48,6 @@ const SubjectCard = ({ subject, onUpdate, onDelete, currentSession }) => {
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               name: topicName,
               completed: false,
-              studyTime: 0,
               forReview: false
             }))
           ]
@@ -113,18 +89,6 @@ const SubjectCard = ({ subject, onUpdate, onDelete, currentSession }) => {
     };
     onUpdate(updatedSubject);
   };
-
-  const formatTime = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    
-    if (hours > 0) {
-      return `${hours}h ${remainingMinutes}m`;
-    }
-    return `${minutes}m`;
-  };
-
-  const isActive = currentSession?.selectedSubject?.id === subject.id && !currentSession?.isBreak;
 
   return (
     <motion.div
@@ -217,7 +181,7 @@ const SubjectCard = ({ subject, onUpdate, onDelete, currentSession }) => {
                 </div>
               </div>
 
-              {studyTimeData.topics.map((topic) => (
+              {subject.topics?.map((topic) => (
                 <motion.div
                   key={topic.id}
                   initial={{ opacity: 0 }}
@@ -242,16 +206,8 @@ const SubjectCard = ({ subject, onUpdate, onDelete, currentSession }) => {
                     >
                       <CheckCircle className="w-5 h-5" />
                     </motion.button>
-                    <span className={topic.completed ? 'line-through text-gray-500' : ''}>
+                    <span className={`${topic.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
                       {topic.name}
-                    </span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {formatTime(topic.studyTime || 0)}
-                      {currentSession?.selectedTopic?.id === topic.id && isActive && (
-                        <span className="text-green-500 dark:text-green-400 ml-1">
-                          (+{formatTime(Math.floor(currentSession.accumulatedTime / 60))})
-                        </span>
-                      )}
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
