@@ -59,6 +59,7 @@ const MinimalistPomodoroTimer = ({
     breakDuration: savedSession.breakDuration
   });
   const [accumulatedTime, setAccumulatedTime] = useState(savedSession.accumulatedTime);
+  const [studySessionActive, setStudySessionActive] = useState(false);
   const audioContextRef = useRef(null);
 
   // Initialize audio context
@@ -129,30 +130,29 @@ const MinimalistPomodoroTimer = ({
       // Session completed
       if (isBreak) {
         // Break ended
-        playNotification(523.25, 0.3); // Higher pitch for break end
+        playNotification(523.25, 0.3);
         setTimeout(() => playNotification(659.25, 0.3), 300);
         setIsBreak(false);
         setTime(currentSession.workDuration * 60);
+        setAccumulatedTime(0);
       } else {
         // Work session finished
-        playNotification(440, 0.3); // Lower pitch for session end
+        playNotification(440, 0.3);
         setTimeout(() => playNotification(523.25, 0.3), 300);
         if (selectedSubject && selectedTopic && accumulatedTime > 0) {
           const studyMinutes = Math.floor(accumulatedTime / 60);
           onTimeUpdate({
             subjectId: selectedSubject.id,
             topicId: selectedTopic.id,
-            time: studyMinutes,
-            type: 'work',
-            operation: 'add'
+            time: studyMinutes
           });
         }
         setIsBreak(true);
         setTime(currentSession.breakDuration * 60);
+        setAccumulatedTime(0);
       }
       setIsActive(false);
       setIsPaused(false);
-      setAccumulatedTime(0);
     }
 
     return () => {
@@ -160,7 +160,7 @@ const MinimalistPomodoroTimer = ({
         clearInterval(interval);
       }
     };
-  }, [isActive, isPaused, time, isBreak, selectedSubject, selectedTopic, currentSession, accumulatedTime, playNotification]);
+  }, [isActive, isPaused, time, isBreak, selectedSubject, selectedTopic, currentSession, accumulatedTime]);
 
   // Track study session
   const trackStudySession = useCallback((duration) => {
@@ -204,9 +204,7 @@ const MinimalistPomodoroTimer = ({
         onTimeUpdate({
           subjectId: selectedSubject.id,
           topicId: selectedTopic.id,
-          time: studyMinutes,
-          type: 'work',
-          operation: 'add'
+          time: studyMinutes
         });
         
         // Track the completed study session
@@ -223,38 +221,21 @@ const MinimalistPomodoroTimer = ({
 
   // Handle stop button press
   const handleStop = useCallback(() => {
-    if (!isBreak && selectedSubject && selectedTopic && accumulatedTime > 0) {
+    if (selectedSubject && selectedTopic && accumulatedTime > 0) {
       const studyMinutes = Math.floor(accumulatedTime / 60);
       onTimeUpdate({
         subjectId: selectedSubject.id,
         topicId: selectedTopic.id,
-        time: studyMinutes,
-        type: 'work',
-        operation: 'add'
+        time: studyMinutes
       });
-      
-      // Track the partial study session
-      trackStudySession(studyMinutes);
     }
     
-    // Only update time if timer was active and not in break mode
-    if (isActive && selectedSubject && selectedTopic && !isBreak && accumulatedTime > 0) {
-      const studyMinutes = Math.floor(accumulatedTime / 60);
-      onTimeUpdate({
-        subjectId: selectedSubject.id,
-        topicId: selectedTopic.id,
-        time: studyMinutes,
-        type: 'work',
-        operation: 'add'
-      });
-    }
-
-    // Reset all states
     setIsActive(false);
     setIsPaused(false);
-    setAccumulatedTime(0);
     setTime(currentSession.workDuration * 60);
     setIsBreak(false);
+    setAccumulatedTime(0);
+    setStudySessionActive(false);
     
     // Clear local storage when stopping
     saveToLocalStorage('pomodoroSession', {

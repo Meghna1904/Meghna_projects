@@ -128,32 +128,33 @@ export default function Home() {
     }
   };
 
-  // Update subject study time
-  const handleTimeUpdate = (timeData) => {
-    setSubjects((prevSubjects) =>
-      prevSubjects.map((subject) => {
-        if (subject.id === timeData.subjectId) {
-          const updatedSubject = {
-            ...subject,
-            totalStudyTime: (subject.totalStudyTime || 0) +
-              (timeData.type === 'work' ? timeData.time : 0),
-            topics: subject.topics.map((topic) =>
-              topic.id === timeData.topicId
-                ? {
-                    ...topic,
-                    studyTime: (topic.studyTime || 0) +
-                      (timeData.type === 'work' ? timeData.time : 0),
-                    lastStudied: new Date().toISOString(),
-                  }
-                : topic
-            ),
-            lastStudied: new Date().toISOString(),
-          };
-          return updatedSubject;
-        }
-        return subject;
-      })
+  // Handle time updates from PomodoroTimer
+  const handleTimeUpdate = ({ subjectId, topicId, time }) => {
+    setSubjects(prevSubjects =>
+      prevSubjects.map(subject =>
+        subject.id === subjectId
+          ? {
+              ...subject,
+              totalStudyTime: (subject.totalStudyTime || 0) + time,
+              topics: subject.topics.map(topic =>
+                topic.id === topicId
+                  ? { ...topic, studyTime: (topic.studyTime || 0) + time }
+                  : topic
+              )
+            }
+          : subject
+      )
     );
+
+    // Add to study sessions
+    const newSession = {
+      timestamp: new Date().toISOString(),
+      subjectId,
+      topicId,
+      duration: time
+    };
+    setStudySessions(prev => [...prev, newSession]);
+    saveToLocalStorage('studySessions', [...studySessions, newSession]);
   };
 
   // Delete subject with confirmation
@@ -405,19 +406,16 @@ export default function Home() {
                 {/* Pomodoro Timer */}
                 <AnimatePresence>
                   {showPomodoroTimer && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="p-4"
-                    >
+                    <div className="lg:col-span-4">
                       <PomodoroTimer
                         subjects={subjects}
                         onTimeUpdate={handleTimeUpdate}
-                        updateSubjects={setSubjects}
-                        onSessionStateChange={setStudySessionActive}
+                        currentSession={currentSession}
+                        setCurrentSession={setCurrentSession}
+                        studySessionActive={studySessionActive}
+                        setStudySessionActive={setStudySessionActive}
                       />
-                    </motion.div>
+                    </div>
                   )}
                 </AnimatePresence>
 
@@ -427,7 +425,10 @@ export default function Home() {
                   transition={{ duration: 0.5, delay: 0.8 }}
                   className="p-4"
                 >
-                  <PerformanceInsights subjects={subjects} />
+                  <PerformanceInsights 
+                    subjects={subjects} 
+                    studySessions={studySessions}
+                  />
                 </motion.div>
 
                 {/* Most Studied Topics Modal */}

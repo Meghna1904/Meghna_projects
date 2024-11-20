@@ -24,6 +24,17 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
     return Math.round((completedTopics / subject.topics.length) * 100);
   }, [subject.topics]);
 
+  // Format time to show hours and minutes
+  const formatTimeSpent = (minutes) => {
+    if (!minutes) return '';
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = Math.floor(minutes % 60);
+    if (hours > 0) {
+      return `${hours}h ${remainingMinutes > 0 ? `${remainingMinutes}m` : ''}`;
+    }
+    return `${remainingMinutes}m`;
+  };
+
   const addTopic = () => {
     if (newTopic.trim()) {
       let topicsToAdd = [];
@@ -48,7 +59,8 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               name: topicName,
               completed: false,
-              forReview: false
+              forReview: false,
+              studyTime: 0
             }))
           ]
         };
@@ -99,9 +111,16 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
       <div className="flex flex-col space-y-4">
         <div className="flex justify-between items-start">
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-violet-950 dark:text-white">
-              {subject.name}
-            </h2>
+            <div className="flex items-center space-x-2">
+              <h2 className="text-xl font-semibold text-violet-950 dark:text-white">
+                {subject.name}
+                {subject.totalStudyTime > 0 && (
+                  <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                    ({Math.floor(subject.totalStudyTime)} min studied)
+                  </span>
+                )}
+              </h2>
+            </div>
             <div className="mt-2 space-y-1">
               <div className="flex justify-between text-sm text-violet-700 dark:text-violet-300">
                 <span>{calculateProgress}% Complete</span>
@@ -190,9 +209,11 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
                   >
                     <CheckCircle className="w-5 h-5" />
                   </button>
-                  <span className={`${topic.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
-                    {topic.name}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className={`${topic.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                      {topic.name}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -209,6 +230,11 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
                       <Bookmark className="w-5 h-5" />
                     )}
                   </button>
+                  {topic.studyTime > 0 && (
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {formatTimeSpent(topic.studyTime)}
+                    </span>
+                  )}
                   <button
                     onClick={() => deleteTopic(topic.id)}
                     className="p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 text-red-500"
