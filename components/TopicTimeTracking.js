@@ -8,26 +8,42 @@ const TopicTimeTracking = ({ open, onClose, subjects, onReviewLater }) => {
 
   // Get all topics with their study time and subject name
   const getAllTopics = () => {
-    const allTopics = [];
+    const allItems = [];
     subjects.forEach(subject => {
-      subject.topics.forEach(topic => {
-        allTopics.push({
-          name: topic.name,
-          studyTime: topic.studyTime || 0,
+      // Add modules
+      subject.modules?.forEach(module => {
+        allItems.push({
+          name: module.name,
+          studyTime: module.studyTime || 0,
           subjectName: subject.name,
-          lastStudied: topic.lastStudied,
-          forReview: topic.forReview || false,
-          id: topic.id
+          lastStudied: module.lastStudied,
+          forReview: module.forReview || false,
+          id: module.id,
+          type: 'module'
+        });
+
+        // Add subtopics
+        module.subtopics?.forEach(subtopic => {
+          allItems.push({
+            name: subtopic.name,
+            studyTime: subtopic.studyTime || 0,
+            subjectName: subject.name,
+            moduleName: module.name,
+            lastStudied: subtopic.lastStudied,
+            forReview: subtopic.forReview || false,
+            id: subtopic.id,
+            type: 'subtopic'
+          });
         });
       });
     });
     
-    return allTopics;
+    return allItems;
   };
 
-  const topics = getAllTopics();
-  const mostStudiedTopics = [...topics].sort((a, b) => b.studyTime - a.studyTime);
-  const reviewTopics = topics.filter(topic => topic.forReview);
+  const items = getAllTopics();
+  const mostStudiedItems = [...items].sort((a, b) => b.studyTime - a.studyTime);
+  const reviewItems = items.filter(item => item.forReview);
 
   // Format time in hours and minutes
   const formatTime = (minutes) => {
@@ -80,7 +96,7 @@ const TopicTimeTracking = ({ open, onClose, subjects, onReviewLater }) => {
                     {topic.name}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {topic.subjectName}
+                    {topic.type === 'subtopic' ? `${topic.moduleName} • ` : ''}{topic.subjectName}
                   </p>
                 </div>
               </div>
@@ -156,7 +172,7 @@ const TopicTimeTracking = ({ open, onClose, subjects, onReviewLater }) => {
                   : 'text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-400'
                 }
               `}>
-                Review Later ({reviewTopics.length})
+                Review Later ({reviewItems.length})
               </Tab>
             </Tab.List>
           </Tab.Group>
@@ -173,9 +189,9 @@ const TopicTimeTracking = ({ open, onClose, subjects, onReviewLater }) => {
               transition={{ duration: 0.2 }}
             >
               {selectedTab === 'most-studied' ? (
-                <TopicList topics={mostStudiedTopics} showRank={true} />
+                <TopicList topics={mostStudiedItems} showRank={true} />
               ) : (
-                <TopicList topics={reviewTopics} showRank={false} />
+                <TopicList topics={reviewItems} showRank={false} />
               )}
             </motion.div>
           </AnimatePresence>

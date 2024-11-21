@@ -36,6 +36,17 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
     return Math.round((completedModules / subject.modules.length) * 100);
   }, [subject.modules]);
 
+  const calculateReviewItems = useMemo(() => {
+    if (!subject.modules) return { modules: 0, subtopics: 0 };
+    const reviewCount = {
+      modules: subject.modules.filter(m => m.forReview).length,
+      subtopics: subject.modules.reduce((count, module) => {
+        return count + (module.subtopics?.filter(s => s.forReview).length || 0);
+      }, 0)
+    };
+    return reviewCount;
+  }, [subject.modules]);
+
   // Format time to show hours and minutes
   const formatTimeSpent = (minutes) => {
     if (!minutes) return '0m';
@@ -161,6 +172,37 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
     onUpdate(updatedSubject);
   };
 
+  const toggleModuleReview = (moduleId) => {
+    const updatedSubject = {
+      ...subject,
+      modules: subject.modules.map(module =>
+        module.id === moduleId
+          ? { ...module, forReview: !module.forReview }
+          : module
+      )
+    };
+    onUpdate(updatedSubject);
+  };
+
+  const toggleSubtopicReview = (moduleId, subtopicId) => {
+    const updatedSubject = {
+      ...subject,
+      modules: subject.modules.map(module =>
+        module.id === moduleId
+          ? {
+              ...module,
+              subtopics: module.subtopics.map(subtopic =>
+                subtopic.id === subtopicId
+                  ? { ...subtopic, forReview: !subtopic.forReview }
+                  : subtopic
+              )
+            }
+          : module
+      )
+    };
+    onUpdate(updatedSubject);
+  };
+
   const deleteSubtopic = (moduleId, subtopicId) => {
     const updatedSubject = {
       ...subject,
@@ -277,6 +319,14 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
                   style={{ width: `${calculateProgress}%` }}
                 ></div>
               </div>
+              {(calculateReviewItems.modules > 0 || calculateReviewItems.subtopics > 0) && (
+                <div className="flex items-center gap-2 mt-2 text-sm text-yellow-600 dark:text-yellow-400">
+                  <BookmarkCheck className="w-4 h-4" />
+                  <span>
+                    {calculateReviewItems.modules} {calculateReviewItems.modules === 1 ? 'module' : 'modules'} and {calculateReviewItems.subtopics} {calculateReviewItems.subtopics === 1 ? 'subtopic' : 'subtopics'} marked for review
+                  </span>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -354,6 +404,16 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
                       }`}
                     >
                       <CheckCircle className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => toggleModuleReview(module.id)}
+                      className={`p-1 rounded-lg transition-colors ${
+                        module.forReview
+                          ? 'text-yellow-500 dark:text-yellow-400'
+                          : 'text-gray-400 hover:text-yellow-500 dark:text-gray-500 dark:hover:text-yellow-400'
+                      }`}
+                    >
+                      {module.forReview ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
                     </button>
                     <div className="flex flex-col">
                       <span className={`${module.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
@@ -502,6 +562,16 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
                               onCheckedChange={() => toggleSubtopicCompletion(module.id, subtopic.id)}
                               className="border-gray-300 dark:border-gray-600"
                             />
+                            <button
+                              onClick={() => toggleSubtopicReview(module.id, subtopic.id)}
+                              className={`p-1 rounded-lg transition-colors ${
+                                subtopic.forReview
+                                  ? 'text-yellow-500 dark:text-yellow-400'
+                                  : 'text-gray-400 hover:text-yellow-500 dark:text-gray-500 dark:hover:text-yellow-400'
+                              }`}
+                            >
+                              {subtopic.forReview ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
+                            </button>
                             <button
                               onClick={() => deleteSubtopic(module.id, subtopic.id)}
                               className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500 dark:text-red-400"
