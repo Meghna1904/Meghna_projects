@@ -41,7 +41,8 @@ const MinimalistPomodoroTimer = ({
     isBreak: false,
     remainingTime: defaultWorkDuration * 60,
     selectedSubjectId: null,
-    selectedTopicId: null,
+    selectedModuleId: null,
+    selectedSubtopicId: null,
     workDuration: defaultWorkDuration,
     breakDuration: defaultBreakDuration,
     accumulatedTime: 0
@@ -53,7 +54,8 @@ const MinimalistPomodoroTimer = ({
   const [isPaused, setIsPaused] = useState(savedSession.isPaused);
   const [isBreak, setIsBreak] = useState(savedSession.isBreak);
   const [selectedSubject, setSelectedSubject] = useState(null);
-  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [selectedModule, setSelectedModule] = useState(null);
+  const [selectedSubtopic, setSelectedSubtopic] = useState(null);
   const [currentSession, setCurrentSession] = useState({
     workDuration: savedSession.workDuration,
     breakDuration: savedSession.breakDuration
@@ -117,7 +119,8 @@ const MinimalistPomodoroTimer = ({
             isBreak,
             remainingTime: newTime,
             selectedSubjectId: selectedSubject?.id || null,
-            selectedTopicId: selectedTopic?.id || null,
+            selectedModuleId: selectedModule?.id || null,
+            selectedSubtopicId: selectedSubtopic?.id || null,
             workDuration: currentSession.workDuration,
             breakDuration: currentSession.breakDuration,
             accumulatedTime: accumulatedTime + 1
@@ -139,11 +142,12 @@ const MinimalistPomodoroTimer = ({
         // Work session finished
         playNotification(440, 0.3);
         setTimeout(() => playNotification(523.25, 0.3), 300);
-        if (selectedSubject && selectedTopic && accumulatedTime > 0) {
+        if (selectedSubject && selectedModule && accumulatedTime > 0) {
           const studyMinutes = Math.floor(accumulatedTime / 60);
           onTimeUpdate({
             subjectId: selectedSubject.id,
-            topicId: selectedTopic.id,
+            moduleId: selectedModule.id,
+            subtopicId: selectedSubtopic?.id,
             time: studyMinutes
           });
         }
@@ -160,7 +164,7 @@ const MinimalistPomodoroTimer = ({
         clearInterval(interval);
       }
     };
-  }, [isActive, isPaused, time, isBreak, selectedSubject, selectedTopic, currentSession, accumulatedTime]);
+  }, [isActive, isPaused, time, isBreak, selectedSubject, selectedModule, currentSession, accumulatedTime]);
 
   // Track study session
   const trackStudySession = useCallback((duration) => {
@@ -168,7 +172,8 @@ const MinimalistPomodoroTimer = ({
       timestamp: new Date().toISOString(),
       duration, // in minutes
       subjectId: selectedSubject?.id,
-      topicId: selectedTopic?.id,
+      moduleId: selectedModule?.id,
+      subtopicId: selectedSubtopic?.id,
       type: 'work'
     };
 
@@ -186,7 +191,7 @@ const MinimalistPomodoroTimer = ({
 
     // Save to localStorage
     localStorage.setItem('studySessions', JSON.stringify(filteredSessions));
-  }, [selectedSubject?.id, selectedTopic?.id]);
+  }, [selectedSubject?.id, selectedModule?.id, selectedSubtopic?.id]);
 
   // Handle session completion
   const handleSessionComplete = useCallback(() => {
@@ -199,11 +204,12 @@ const MinimalistPomodoroTimer = ({
       setAccumulatedTime(0);
     } else {
       // Work session finished
-      if (selectedSubject && selectedTopic && accumulatedTime > 0) {
+      if (selectedSubject && selectedModule && accumulatedTime > 0) {
         const studyMinutes = Math.floor(accumulatedTime / 60);
         onTimeUpdate({
           subjectId: selectedSubject.id,
-          topicId: selectedTopic.id,
+          moduleId: selectedModule.id,
+          subtopicId: selectedSubtopic?.id,
           time: studyMinutes
         });
         
@@ -217,15 +223,16 @@ const MinimalistPomodoroTimer = ({
       setIsPaused(false);
       setAccumulatedTime(0);
     }
-  }, [currentSession.workDuration, currentSession.breakDuration, isBreak, selectedSubject, selectedTopic, accumulatedTime, onTimeUpdate, trackStudySession]);
+  }, [currentSession.workDuration, currentSession.breakDuration, isBreak, selectedSubject, selectedModule, accumulatedTime, onTimeUpdate, trackStudySession]);
 
   // Handle stop button press
   const handleStop = useCallback(() => {
-    if (selectedSubject && selectedTopic && accumulatedTime > 0) {
+    if (selectedSubject && selectedModule && accumulatedTime > 0) {
       const studyMinutes = Math.floor(accumulatedTime / 60);
       onTimeUpdate({
         subjectId: selectedSubject.id,
-        topicId: selectedTopic.id,
+        moduleId: selectedModule.id,
+        subtopicId: selectedSubtopic?.id,
         time: studyMinutes
       });
     }
@@ -244,12 +251,13 @@ const MinimalistPomodoroTimer = ({
       isBreak: false,
       remainingTime: currentSession.workDuration * 60,
       selectedSubjectId: selectedSubject?.id || null,
-      selectedTopicId: selectedTopic?.id || null,
+      selectedModuleId: selectedModule?.id || null,
+      selectedSubtopicId: selectedSubtopic?.id || null,
       workDuration: currentSession.workDuration,
       breakDuration: currentSession.breakDuration,
       accumulatedTime: 0
     });
-  }, [isActive, selectedSubject, selectedTopic, isBreak, currentSession.workDuration, onTimeUpdate, accumulatedTime, trackStudySession]);
+  }, [isActive, selectedSubject, selectedModule, isBreak, currentSession.workDuration, onTimeUpdate, accumulatedTime, trackStudySession]);
 
   // Update time when work or break duration changes
   useEffect(() => {
@@ -264,14 +272,23 @@ const MinimalistPomodoroTimer = ({
     if (currentSubject) {
       setSelectedSubject(currentSubject);
      
-      // Update selected topic if it exists in the updated subject
-      const currentTopic = currentSubject.topics?.find(t => t.id === (selectedTopic?.id || savedSession.selectedTopicId));
-      setSelectedTopic(currentTopic || null);
+      // Update selected module if it exists in the updated subject
+      const currentModule = currentSubject.modules?.find(m => m.id === (selectedModule?.id || savedSession.selectedModuleId));
+      setSelectedModule(currentModule || null);
+
+      // Update selected subtopic if it exists in the updated module
+      if (currentModule) {
+        const currentSubtopic = currentModule.subtopics?.find(s => s.id === (selectedSubtopic?.id || savedSession.selectedSubtopicId));
+        setSelectedSubtopic(currentSubtopic || null);
+      } else {
+        setSelectedSubtopic(null);
+      }
     } else {
       setSelectedSubject(null);
-      setSelectedTopic(null);
+      setSelectedModule(null);
+      setSelectedSubtopic(null);
     }
-  }, [subjects, savedSession.selectedSubjectId, savedSession.selectedTopicId]);
+  }, [subjects, savedSession.selectedSubjectId, savedSession.selectedModuleId, savedSession.selectedSubtopicId]);
 
   // Handle work duration change
   const handleWorkDurationChange = (value) => {
@@ -312,34 +329,87 @@ const MinimalistPomodoroTimer = ({
       isBreak: false,
       remainingTime: currentSession.workDuration * 60,
       selectedSubjectId: selectedSubject?.id || null,
-      selectedTopicId: selectedTopic?.id || null,
+      selectedModuleId: selectedModule?.id || null,
+      selectedSubtopicId: selectedSubtopic?.id || null,
       workDuration: currentSession.workDuration,
       breakDuration: currentSession.breakDuration,
       accumulatedTime: 0
     });
-  }, [currentSession.workDuration, selectedSubject?.id, selectedTopic?.id]);
+  }, [currentSession.workDuration, selectedSubject?.id, selectedModule?.id, selectedSubtopic?.id]);
 
   // Selection handlers
   const handleSubjectChange = (e) => {
     const newSubject = subjects.find(s => s.id === e.target.value);
     setSelectedSubject(newSubject || null);
-    setSelectedTopic(null); // Reset topic when subject changes
+    setSelectedModule(null);
+    setSelectedSubtopic(null);
    
     saveToLocalStorage('pomodoroSession', {
       ...savedSession,
       selectedSubjectId: newSubject?.id || null,
-      selectedTopicId: null
+      selectedModuleId: null,
+      selectedSubtopicId: null
     });
   };
 
-  const handleTopicChange = (e) => {
-    const newTopic = selectedSubject?.topics?.find(t => t.id === e.target.value);
-    setSelectedTopic(newTopic || null);
+  const handleModuleChange = (e) => {
+    const newModule = selectedSubject.modules.find(m => m.id === e.target.value);
+    setSelectedModule(newModule || null);
+    setSelectedSubtopic(null);
    
     saveToLocalStorage('pomodoroSession', {
       ...savedSession,
-      selectedTopicId: newTopic?.id || null
+      selectedModuleId: newModule?.id || null,
+      selectedSubtopicId: null
     });
+  };
+
+  const handleSubtopicChange = (e) => {
+    const newSubtopic = selectedModule.subtopics.find(s => s.id === e.target.value);
+    setSelectedSubtopic(newSubtopic || null);
+   
+    saveToLocalStorage('pomodoroSession', {
+      ...savedSession,
+      selectedSubtopicId: newSubtopic?.id || null
+    });
+  };
+
+  const updateStudyTime = () => {
+    if (selectedSubject && selectedModule) {
+      const updatedSubjects = subjects.map(subject => {
+        if (subject.id === selectedSubject.id) {
+          return {
+            ...subject,
+            modules: subject.modules.map(module => {
+              if (module.id === selectedModule.id) {
+                if (selectedSubtopic) {
+                  // Update subtopic study time
+                  return {
+                    ...module,
+                    subtopics: module.subtopics.map(subtopic => 
+                      subtopic.id === selectedSubtopic.id
+                        ? { ...subtopic, studyTime: (subtopic.studyTime || 0) + accumulatedTime }
+                        : subtopic
+                    )
+                  };
+                } else {
+                  // Update module study time if no subtopic selected
+                  return {
+                    ...module,
+                    studyTime: (module.studyTime || 0) + accumulatedTime
+                  };
+                }
+              }
+              return module;
+            })
+          };
+        }
+        return subject;
+      });
+
+      updateSubjects(updatedSubjects);
+      setAccumulatedTime(0);
+    }
   };
 
   return (
@@ -362,7 +432,7 @@ const MinimalistPomodoroTimer = ({
         </div>
       </div>
 
-      {/* Subject and Topic Selection */}
+      {/* Subject and Module Selection */}
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
@@ -392,11 +462,11 @@ const MinimalistPomodoroTimer = ({
         {selectedSubject && (
           <div>
             <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
-              Select Topic
+              Select Module
             </label>
             <select
-              value={selectedTopic?.id || ''}
-              onChange={handleTopicChange}
+              value={selectedModule?.id || ''}
+              onChange={handleModuleChange}
               disabled={isActive}
               className={`w-full p-2 rounded-lg border ${
                 isActive 
@@ -404,12 +474,39 @@ const MinimalistPomodoroTimer = ({
                   : 'bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100'
               } dark:border-gray-600 focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-400`}
             >
-              <option value="">Choose a topic...</option>
-              {selectedSubject.topics?.map((topic) => (
-                <option key={topic.id} value={topic.id}
+              <option value="">Choose a module...</option>
+              {selectedSubject.modules?.map((module) => (
+                <option key={module.id} value={module.id}
                   className="dark:bg-gray-700 dark:text-gray-100"
                 >
-                  {topic.name}
+                  {module.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {selectedModule && selectedModule.subtopics?.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
+              Select Subtopic (Optional)
+            </label>
+            <select
+              value={selectedSubtopic?.id || ''}
+              onChange={handleSubtopicChange}
+              disabled={isActive}
+              className={`w-full p-2 rounded-lg border ${
+                isActive 
+                  ? 'bg-gray-100 text-gray-500 cursor-not-allowed dark:bg-gray-800 dark:text-gray-400'
+                  : 'bg-white text-gray-900 dark:bg-gray-700 dark:text-gray-100'
+              } dark:border-gray-600 focus:ring-2 focus:ring-violet-500 dark:focus:ring-violet-400`}
+            >
+              <option value="">Choose a subtopic...</option>
+              {selectedModule.subtopics.map((subtopic) => (
+                <option key={subtopic.id} value={subtopic.id}
+                  className="dark:bg-gray-700 dark:text-gray-100"
+                >
+                  {subtopic.name}
                 </option>
               ))}
             </select>
@@ -428,9 +525,9 @@ const MinimalistPomodoroTimer = ({
                 setIsActive(true);
                 setIsPaused(false);
               }}
-              disabled={!selectedSubject || !selectedTopic}
+              disabled={!selectedSubject || !selectedModule}
               className={`p-3 rounded-full transition-colors ${
-                !selectedSubject || !selectedTopic
+                !selectedSubject || !selectedModule
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed dark:bg-gray-800 dark:text-gray-600'
                   : 'bg-green-500 text-white hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700'
               }`}
