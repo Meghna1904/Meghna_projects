@@ -374,6 +374,11 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
                   id="bulkImport"
                   checked={isBulkImport}
                   onCheckedChange={setIsBulkImport}
+                  className={`border-gray-300 dark:border-gray-600 ${
+                    isBulkImport 
+                      ? 'data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500' 
+                      : ''
+                  }`}
                 />
                 <label
                   htmlFor="bulkImport"
@@ -543,6 +548,11 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
                           id={`subtopicBulkImport-${module.id}`}
                           checked={isSubtopicBulkImport}
                           onCheckedChange={setIsSubtopicBulkImport}
+                          className={`border-gray-300 dark:border-gray-600 ${
+                            isSubtopicBulkImport 
+                              ? 'data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500' 
+                              : ''
+                          }`}
                         />
                         <label
                           htmlFor={`subtopicBulkImport-${module.id}`}
@@ -554,14 +564,23 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
                     </div>
 
                     {module.subtopics?.map(subtopic => (
-                      <div key={subtopic.id} className="flex flex-col space-y-2 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg">
+                      <div key={subtopic.id} className={`flex flex-col space-y-2 p-3 rounded-lg ${
+                        subtopic.completed 
+                          ? 'bg-green-50 dark:bg-green-900/10' 
+                          : 'bg-gray-50 dark:bg-gray-800/50'
+                      }`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Checkbox
-                              checked={subtopic.completed}
-                              onCheckedChange={() => toggleSubtopicCompletion(module.id, subtopic.id)}
-                              className="border-gray-300 dark:border-gray-600"
-                            />
+                            <button
+                              onClick={() => toggleSubtopicCompletion(module.id, subtopic.id)}
+                              className={`p-1 rounded-full transition-colors ${
+                                subtopic.completed
+                                  ? 'text-green-500 dark:text-green-400'
+                                  : 'text-gray-400 dark:text-gray-500 hover:text-violet-500'
+                              }`}
+                            >
+                              <CheckCircle className="w-5 h-5" />
+                            </button>
                             <button
                               onClick={() => toggleSubtopicReview(module.id, subtopic.id)}
                               className={`p-1 rounded-lg transition-colors ${
