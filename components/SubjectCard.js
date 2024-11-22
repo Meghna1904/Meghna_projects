@@ -27,13 +27,25 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
 
   const calculateProgress = useMemo(() => {
     if (!subject.modules || subject.modules.length === 0) return 0;
-    const completedModules = subject.modules.filter(module => {
+    
+    let totalItems = 0;
+    let completedItems = 0;
+    
+    subject.modules.forEach(module => {
       if (module.subtopics && module.subtopics.length > 0) {
-        return module.subtopics.every(subtopic => subtopic.completed);
+        // Count each subtopic as a completion item
+        totalItems += module.subtopics.length;
+        completedItems += module.subtopics.filter(subtopic => subtopic.completed).length;
+      } else {
+        // If no subtopics, count the module itself
+        totalItems += 1;
+        if (module.completed) {
+          completedItems += 1;
+        }
       }
-      return module.completed;
-    }).length;
-    return Math.round((completedModules / subject.modules.length) * 100);
+    });
+    
+    return Math.round((completedItems / totalItems) * 100);
   }, [subject.modules]);
 
   const calculateReviewItems = useMemo(() => {
@@ -142,6 +154,7 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
           ? {
               ...module,
               completed: !module.completed,
+              // When marking a module complete, also complete all its subtopics
               subtopics: module.subtopics?.map(subtopic => ({
                 ...subtopic,
                 completed: !module.completed
@@ -164,6 +177,12 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
                 subtopic.id === subtopicId
                   ? { ...subtopic, completed: !subtopic.completed }
                   : subtopic
+              ),
+              // Update module completion if all subtopics are completed
+              completed: module.subtopics.every(subtopic => 
+                subtopic.id === subtopicId 
+                  ? !subtopic.completed  // Use the toggled value
+                  : subtopic.completed
               )
             }
           : module

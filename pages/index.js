@@ -115,7 +115,7 @@ export default function Home() {
       const newSubject = {
         id: Date.now().toString(),
         name: newSubjectName.trim(),
-        topics: [],
+        modules: [],
         totalStudyTime: 0,
         goal: null,
         progress: 0,
@@ -129,17 +129,25 @@ export default function Home() {
   };
 
   // Handle time updates from PomodoroTimer
-  const handleTimeUpdate = ({ subjectId, topicId, time }) => {
+  const handleTimeUpdate = ({ subjectId, moduleId, subtopicId, time }) => {
     setSubjects(prevSubjects =>
       prevSubjects.map(subject =>
         subject.id === subjectId
           ? {
               ...subject,
               totalStudyTime: (subject.totalStudyTime || 0) + time,
-              topics: subject.topics.map(topic =>
-                topic.id === topicId
-                  ? { ...topic, studyTime: (topic.studyTime || 0) + time }
-                  : topic
+              modules: subject.modules.map(module =>
+                module.id === moduleId
+                  ? {
+                      ...module,
+                      studyTime: (module.studyTime || 0) + time,
+                      subtopics: module.subtopics?.map(subtopic =>
+                        subtopic.id === subtopicId
+                          ? { ...subtopic, studyTime: (subtopic.studyTime || 0) + time }
+                          : subtopic
+                      ) || []
+                    }
+                  : module
               )
             }
           : subject
@@ -150,7 +158,8 @@ export default function Home() {
     const newSession = {
       timestamp: new Date().toISOString(),
       subjectId,
-      topicId,
+      moduleId,
+      subtopicId,
       duration: time
     };
     setStudySessions(prev => [...prev, newSession]);
@@ -183,14 +192,19 @@ export default function Home() {
         if (subject.name === subjectName) {
           return {
             ...subject,
-            topics: subject.topics.map(topic => {
-              if (topic.name === topicName) {
-                return {
-                  ...topic,
-                  forReview: !topic.forReview
-                };
-              }
-              return topic;
+            modules: subject.modules.map(module => {
+              return {
+                ...module,
+                subtopics: module.subtopics.map(subtopic => {
+                  if (subtopic.name === topicName) {
+                    return {
+                      ...subtopic,
+                      forReview: !subtopic.forReview
+                    };
+                  }
+                  return subtopic;
+                })
+              };
             })
           };
         }
@@ -331,18 +345,18 @@ export default function Home() {
                       >
                         <SubjectCard
                           subject={subject}
-                          onAddTopic={(subjectId, topicName) => {
+                          onAddModule={(subjectId, moduleName) => {
                             const updatedSubjects = subjects.map(s =>
                               s.id === subjectId
                                 ? {
                                     ...s,
-                                    topics: [
-                                      ...(s.topics || []),
+                                    modules: [
+                                      ...(s.modules || []),
                                       {
                                         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                                        name: topicName,
+                                        name: moduleName,
                                         studyTime: 0,
-                                        forReview: false
+                                        subtopics: []
                                       }
                                     ]
                                   }
@@ -350,41 +364,82 @@ export default function Home() {
                             );
                             setSubjects(updatedSubjects);
                           }}
-                          onTopicComplete={(subjectId, topicId) => {
+                          onAddSubtopic={(subjectId, moduleId, subtopicName) => {
                             const updatedSubjects = subjects.map(s =>
                               s.id === subjectId
                                 ? {
                                     ...s,
-                                    topics: s.topics.map(t =>
-                                      t.id === topicId
-                                        ? { ...t, completed: true }
-                                        : t
+                                    modules: s.modules.map(m =>
+                                      m.id === moduleId
+                                        ? {
+                                            ...m,
+                                            subtopics: [
+                                              ...(m.subtopics || []),
+                                              {
+                                                id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                                                name: subtopicName,
+                                                studyTime: 0,
+                                                forReview: false
+                                              }
+                                            ]
+                                          }
+                                        : m
                                     )
                                   }
                                 : s
                             );
                             setSubjects(updatedSubjects);
                           }}
-                          onReviewLater={(subjectName, topicName) => {
+                          onSubtopicComplete={(subjectId, moduleId, subtopicId) => {
+                            const updatedSubjects = subjects.map(s =>
+                              s.id === subjectId
+                                ? {
+                                    ...s,
+                                    modules: s.modules.map(m =>
+                                      m.id === moduleId
+                                        ? {
+                                            ...m,
+                                            subtopics: m.subtopics.map(st =>
+                                              st.id === subtopicId
+                                                ? { ...st, completed: true }
+                                                : st
+                                            )
+                                          }
+                                        : m
+                                    )
+                                  }
+                                : s
+                            );
+                            setSubjects(updatedSubjects);
+                          }}
+                          onReviewLater={(subjectName, moduleName, subtopicName) => {
                             setSubjects(prevSubjects =>
                               prevSubjects.map(subject =>
                                 subject.name === subjectName
                                   ? {
                                       ...subject,
-                                      topics: subject.topics.map(topic =>
-                                        topic.name === topicName
-                                          ? { ...topic, forReview: !topic.forReview }
-                                          : topic
+                                      modules: subject.modules.map(module =>
+                                        module.name === moduleName
+                                          ? {
+                                              ...module,
+                                              subtopics: module.subtopics.map(subtopic =>
+                                                subtopic.name === subtopicName
+                                                  ? { ...subtopic, forReview: !subtopic.forReview }
+                                                  : subtopic
+                                              )
+                                            }
+                                          : module
                                       )
                                     }
                                   : subject
                               )
                             );
                           }}
-                          onStartStudy={(subjectId, topicName) => {
+                          onStartStudy={(subjectId, moduleId, subtopicName) => {
                             setCurrentSession({
                               subjectId,
-                              topicName,
+                              moduleId,
+                              subtopicName,
                               startTime: Date.now(),
                               accumulatedTime: 0
                             });

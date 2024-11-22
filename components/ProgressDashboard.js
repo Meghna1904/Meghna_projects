@@ -6,9 +6,16 @@ const ProgressDashboard = ({ subjects }) => {
   const calculateOverallProgress = () => {
     if (!subjects.length) return 0;
     const totalProgress = subjects.reduce((acc, subject) => {
-      const completed = subject.topics?.filter(topic => topic.completed)?.length || 0;
-      const total = subject.topics?.length || 1;
-      return acc + (completed / total);
+      if (!subject.modules || subject.modules.length === 0) return acc;
+      
+      const completedModules = subject.modules.filter(module => {
+        if (module.subtopics && module.subtopics.length > 0) {
+          return module.subtopics.every(subtopic => subtopic.completed);
+        }
+        return module.completed;
+      }).length;
+      
+      return acc + (completedModules / subject.modules.length);
     }, 0);
     return Math.round((totalProgress / subjects.length) * 100);
   };
