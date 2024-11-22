@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-
+import confetti from 'canvas-confetti';
 import { 
   Trash2, 
   Plus, 
@@ -164,6 +164,17 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
       )
     };
     onUpdate(updatedSubject);
+    
+    // Only trigger confetti when marking as complete
+    const module = updatedSubject.modules.find(m => m.id === moduleId);
+    if (module && module.completed) {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#8B5CF6', '#06B6D4', '#ffffff'],
+      });
+    }
   };
 
   const toggleSubtopicCompletion = (moduleId, subtopicId) => {
@@ -189,6 +200,18 @@ const SubjectCard = ({ subject, onUpdate, onDelete }) => {
       )
     };
     onUpdate(updatedSubject);
+
+    // Only trigger confetti when marking a subtopic as complete
+    const module = updatedSubject.modules.find(m => m.id === moduleId);
+    const subtopic = module?.subtopics.find(s => s.id === subtopicId);
+    if (subtopic && subtopic.completed) {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#8B5CF6', '#06B6D4', '#ffffff'],
+      });
+    }
   };
 
   const toggleModuleReview = (moduleId) => {
